@@ -104,7 +104,22 @@ if uploaded:
     tsv = result.to_csv(sep="\t", index=False)
     st.text_area("Copy table for your email (select all and copy)", value=tsv, height=250)
 
-    plain_text = result.to_markdown(index=False)
+    # Build a plain-text table without pandas' optional tabulate dependency.
+    headers = [str(col) for col in result.columns]
+    table_rows = [[("" if pd.isna(value) else str(value)) for value in row]
+                  for row in result.itertuples(index=False, name=None)]
+    widths = [
+        max(len(headers[i]), *(len(row[i]) for row in table_rows))
+        for i in range(len(headers))
+    ]
+    def format_row(row):
+        return "| " + " | ".join(value.ljust(widths[i]) for i, value in enumerate(row)) + " |"
+    plain_text = "\\n".join([
+        format_row(headers),
+        "|-" + "-|-".join("-" * width for width in widths) + "-|",
+        *(format_row(row) for row in table_rows),
+        "",
+    ])
     st.download_button(
         "Download plain text report",
         data=plain_text.encode("utf-8"),
@@ -119,4 +134,3 @@ if uploaded:
         st.write("Unclassified postcodes:", int((valid["_region"] == "Unknown").sum()))
         st.write("Challenge-on-entry answers counted:", int(valid["_challenge"].sum()))
         st.write("Aborted audits excluded:", int(df["_aborted"].sum()))
-
